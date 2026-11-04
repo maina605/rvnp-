@@ -77,6 +77,9 @@
 
   function friendlyError(error) {
     if (!error) return "Something went wrong. Please try again.";
+    if (/email rate limit exceeded|rate limit.*email/i.test(error.message || "")) {
+      return "Supabase has temporarily limited confirmation emails for this project. Wait before trying again, or configure a custom SMTP provider in Supabase → Authentication → SMTP Settings. Repeated retries will not bypass the limit.";
+    }
     if (error.code === "23505" || /duplicate key|already registered/i.test(error.message || "")) {
       return "That email, admission number, or trainer ID is already in use.";
     }

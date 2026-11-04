@@ -12,6 +12,10 @@ Static frontend for Vercel with user accounts, Postgres data, and row-level acce
 
 The browser key is intentionally public. Do not put a Supabase `service_role` or secret key in this file. Database access is restricted by the SQL schema's row-level security policies.
 
+### Email delivery
+
+Supabase's default email service is tightly rate-limited and intended for testing. If sign-up or password recovery reports an email rate limit, stop retrying and wait for the limit to reset. For reliable delivery, configure a custom SMTP provider in **Authentication → SMTP Settings**. Enter SMTP credentials directly in the Supabase dashboard; never add them to this repository or share them in chat. Keep email confirmation enabled rather than disabling verification to work around delivery limits.
+
 Trainer accounts are created as pending. After the trainer confirms their email, an RVNP administrator must approve the account in the Supabase SQL Editor:
 
 ```sql
