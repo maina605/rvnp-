@@ -27,6 +27,9 @@
     authForm: document.getElementById("auth-form"),
     forgotForm: document.getElementById("forgot-form"),
     recoveryForm: document.getElementById("recovery-form"),
+    recoveryCodeField: document.getElementById("recovery-code-field"),
+    recoveryCode: document.getElementById("recovery-code"),
+    recoveryEmailLabel: document.getElementById("recovery-email-label"),
     roleButtons: Array.from(document.querySelectorAll("[data-role]")),
     registerFields: Array.from(document.querySelectorAll("[data-register-only]")),
     trainerFields: Array.from(document.querySelectorAll("[data-trainer-only]")),
@@ -67,6 +70,8 @@
   let currentProfile = null;
   let authVersion = 0;
   let traineeRoster = [];
+  let recoveryEmail = "";
+  let recoveryOtpVerified = false;
   let recoveryMode = new URLSearchParams(window.location.search).get("view") === "recovery";
 
   function showNotice(message, type) {
@@ -285,9 +290,22 @@
   });
 
   document.querySelectorAll("[data-back-auth]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
+      if (recoveryOtpVerified) {
+        const { error } = await client.auth.signOut();
+        if (error) {
+          showNotice(friendlyError(error), "error");
+          return;
+        }
+      }
+      elements.recoveryView.hidden = true;
+      elements.authView.hidden = false;
       elements.forgotView.hidden = true;
       elements.authFormView.hidden = false;
+      recoveryOtpVerified = false;
+      recoveryMode = false;
+      window.history.replaceState({}, "", window.location.pathname);
+      showNotice("", "");
     });
   });
 
@@ -326,8 +344,8 @@
           await showDashboard(data.session);
         } else {
           showNotice(selectedRole === "trainer"
-            ? "Registration received. Confirm your email, then wait for an RVNP administrator to approve your trainer account."
-            : "Registration received. Check your email to confirm your account, then sign in.", "");
+            ? "Your registration details are saved. Confirm your email, then wait for an RVNP administrator to approve your trainer account."
+            : "Your registration details are saved. Check your email to confirm your account, then sign in to record and review attendance.", "");
           setAuthMode(selectedRole, false);
         }
       } else {
@@ -356,11 +374,18 @@
     showNotice("", "");
     setBusy(elements.forgotForm, true);
     try {
-      const email = document.getElementById("recovery-email").value.trim();
-      const redirectTo = `${window.location.origin}${window.location.pathname}?view=recovery`;
-      const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo });
+      recoveryEmail = document.getElementById("recovery-email").value.trim();
+      const { error } = await client.auth.resetPasswordForEmail(recoveryEmail);
       if (error) throw error;
-      showNotice("If an account exists for that email, a password reset link has been sent.", "");
+      recoveryOtpVerified = false;
+      recoveryMode = true;
+      elements.recoveryForm.reset();
+      elements.recoveryCodeField.hidden = false;
+      elements.recoveryCode.required = true;
+      safeText(elements.recoveryEmailLabel, `Enter the recovery code sent to ${recoveryEmail}, then choose a new password.`);
+      elements.authView.hidden = true;
+      elements.recoveryView.hidden = false;
+      showNotice("If an account exists for that email, a recovery code has been sent.", "");
     } catch (error) {
       showNotice(friendlyError(error), "error");
     } finally {
@@ -381,8 +406,24 @@
       showNotice("The passwords do not match.", "error");
       return;
     }
+    const token = elements.recoveryCode.value.trim();
+    if (!recoveryOtpVerified && !/^\d{6}$/.test(token)) {
+      showNotice("Enter the six-digit recovery code from your email.", "error");
+      return;
+    }
     setBusy(elements.recoveryForm, true);
     try {
+      if (!recoveryOtpVerified) {
+        const { error } = await client.auth.verifyOtp({
+          email: recoveryEmail,
+          token,
+          type: "recovery"
+        });
+        if (error) throw error;
+        recoveryOtpVerified = true;
+        elements.recoveryCodeField.hidden = true;
+        elements.recoveryCode.required = false;
+      }
       const { error } = await client.auth.updateUser({ password });
       if (error) throw error;
       recoveryMode = false;
@@ -397,6 +438,25 @@
       showNotice(friendlyError(error), "error");
     } finally {
       setBusy(elements.recoveryForm, false);
+    }
+  });
+
+  document.getElementById("resend-recovery-code").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      if (!recoveryEmail) throw new Error("Return to sign in and request a recovery code again.");
+      const { error } = await client.auth.resetPasswordForEmail(recoveryEmail);
+      if (error) throw error;
+      elements.recoveryCode.value = "";
+      recoveryOtpVerified = false;
+      elements.recoveryCodeField.hidden = false;
+      elements.recoveryCode.required = true;
+      showNotice("If an account exists for that email, a new recovery code has been sent.", "");
+    } catch (error) {
+      showNotice(friendlyError(error), "error");
+    } finally {
+      button.disabled = false;
     }
   });
 
@@ -537,11 +597,17 @@
   client.auth.onAuthStateChange((event, session) => {
     if (event === "PASSWORD_RECOVERY") {
       recoveryMode = true;
+      recoveryOtpVerified = true;
+      recoveryEmail = session && session.user ? session.user.email || "" : "";
+      elements.recoveryCodeField.hidden = true;
+      elements.recoveryCode.required = false;
+      safeText(elements.recoveryEmailLabel, "Choose a new password for your account.");
       elements.authView.hidden = true;
       elements.dashboardView.hidden = true;
       elements.recoveryView.hidden = false;
       return;
     }
+    if (recoveryMode) return;
     window.setTimeout(() => { void showDashboard(session); }, 0);
   });
 

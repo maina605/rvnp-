@@ -10,6 +10,10 @@ Static frontend for Vercel with user accounts, Postgres data, and row-level acce
 4. In **Authentication → Providers → Email**, configure email confirmation and password recovery to match your needs.
 5. Copy the project URL and the **publishable** key (or legacy `anon` key) from **Project Settings → API** into [`supabase-config.js`](./supabase-config.js).
 
+### Password recovery by email code
+
+The portal requests a recovery email, verifies its six-digit code, then updates the password. In **Authentication → Email Templates → Reset Password**, use `{{ .Token }}` in the message body (for example, `Your RVNP password reset code is {{ .Token }}`) instead of relying only on `{{ .ConfirmationURL }}`. Keep the token type as the password recovery template; the app verifies it as `recovery`.
+
 The browser key is intentionally public. Do not put a Supabase `service_role` or secret key in this file. Database access is restricted by the SQL schema's row-level security policies.
 
 ### Email delivery

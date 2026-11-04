@@ -91,13 +91,13 @@
         <div id="forgot-view" hidden>
           <p class="eyebrow">ACCOUNT RECOVERY</p>
           <h2>Reset your password</h2>
-          <p class="muted">We will email you a secure password reset link.</p>
+          <p class="muted">We will email you a one-time recovery code.</p>
           <form id="forgot-form" class="form-stack">
             <div class="form-field">
               <label for="recovery-email">Email address</label>
               <input id="recovery-email" type="email" autocomplete="email" required maxlength="254">
             </div>
-            <button class="button button-primary" type="submit">Send reset link</button>
+            <button class="button button-primary" type="submit">Send recovery code</button>
           </form>
           <button class="text-button back-link" type="button" data-back-auth>Back to sign in</button>
         </div>
@@ -107,8 +107,12 @@
     <section id="recovery-view" class="card recovery-card" hidden>
       <p class="eyebrow">ACCOUNT RECOVERY</p>
       <h1>Choose a new password</h1>
-      <p class="muted">Enter a new password for your account.</p>
+      <p id="recovery-email-label" class="muted">Enter the code sent to your email and choose a new password.</p>
       <form id="recovery-form" class="form-stack">
+        <div id="recovery-code-field" class="form-field">
+          <label for="recovery-code">Email recovery code</label>
+          <input id="recovery-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
+        </div>
         <div class="form-field">
           <label for="new-password">New password</label>
           <input id="new-password" type="password" autocomplete="new-password" required minlength="8">
@@ -119,6 +123,8 @@
         </div>
         <button class="button button-primary" type="submit">Update password</button>
       </form>
+      <button id="resend-recovery-code" class="text-button back-link" type="button">Send a new code</button>
+      <button class="text-button back-link" type="button" data-back-auth>Back to sign in</button>
     </section>
 
     <section id="dashboard-view" hidden>
