@@ -1,55 +1,57 @@
 # RVNP Attendance Portal
 
-Static frontend for Vercel with user accounts, Postgres data, and row-level access policies in Supabase. The original PHP/MySQL scripts have been replaced; Vercel does not execute PHP.
+Official static attendance portal for Rift Valley National Polytechnic (RVNP), deployed to Vercel with user accounts, Postgres database, and Row-Level Security (RLS) policies in Supabase.
+
+Live URL: [https://rvnp-attendance.vercel.app](https://rvnp-attendance.vercel.app)
+
+---
+
+## Key Roles & Workflow
+
+1. **Trainee Role (Read-Only Attendance)**:
+   - Trainees **cannot mark attendance** for themselves or others.
+   - Trainees can view their attendance history, calculate attendance percentage (present vs total), and generate an official scannable QR Pass with their admission number for unit trainers to scan during roll call.
+2. **Trainer Role (Attendance Marking)**:
+   - When a trainer registers, their account is flagged as **Pending Approval**.
+   - Once approved by an Administrator, the trainer can access their assigned course roster, select enrolled trainees, enter the unit name, and mark session attendance (`Present`, `Absent`, `Late`).
+3. **Administrator Role (Trainer Approvals & Notifications)**:
+   - Administrators review all incoming trainer registrations.
+   - 1-click **Accept & Approve Trainer** grants the trainer portal permissions.
+   - **One-tap Email & Mobile Contact**: The admin can instantly send a pre-filled approval email to the trainer's Gmail via mobile/desktop mail client (`mailto:`), open Web Gmail, or call/SMS the trainer directly from their phone.
+
+---
 
 ## Set up Supabase
 
-1. Create a Supabase project.
-2. In **SQL Editor**, run [`supabase/schema.sql`](./supabase/schema.sql).
-3. In **Authentication → URL Configuration**, set the Site URL to your Vercel URL. Add `http://localhost:8000/**` and `https://YOUR_VERCEL_DOMAIN/**` to the redirect allow list so email confirmation and password recovery links can return to the portal.
-4. In **Authentication → Providers → Email**, configure email confirmation and password recovery to match your needs.
-5. Copy the project URL and the **publishable** key (or legacy `anon` key) from **Project Settings → API** into [`supabase-config.js`](./supabase-config.js).
+1. In your Supabase Project **SQL Editor**, run [`supabase/schema.sql`](./supabase/schema.sql).
+2. In **Authentication → URL Configuration**, add:
+   - `http://localhost:8000/**`
+   - `https://rvnp-attendance.vercel.app/**`
+3. In **Project Settings → API**, copy the project URL and the publishable key into [`supabase-config.js`](./supabase-config.js).
 
-### Password recovery by email code
-
-The portal requests a recovery email, verifies its six-digit code, then updates the password. In **Authentication → Email Templates → Reset Password**, use `{{ .Token }}` in the message body (for example, `Your RVNP password reset code is {{ .Token }}`) instead of relying only on `{{ .ConfirmationURL }}`. Keep the token type as the password recovery template; the app verifies it as `recovery`.
-
-The browser key is intentionally public. Do not put a Supabase `service_role` or secret key in this file. Database access is restricted by the SQL schema's row-level security policies.
-
-### Email delivery
-
-Supabase's default email service is tightly rate-limited and intended for testing. If sign-up or password recovery reports an email rate limit, stop retrying and wait for the limit to reset. For reliable delivery, configure a custom SMTP provider in **Authentication → SMTP Settings**. Enter SMTP credentials directly in the Supabase dashboard; never add them to this repository or share them in chat. Keep email confirmation enabled rather than disabling verification to work around delivery limits.
-
-Trainer accounts are created as pending. After the trainer confirms their email, an RVNP administrator must approve the account in the Supabase SQL Editor:
-
+### Creating an Initial Administrator
+To promote any registered account to Administrator:
 ```sql
 update public.profiles
-set is_approved = true
-where role = 'trainer' and trainer_id = 'TRAINER_ID_HERE';
+set role = 'admin', is_approved = true
+where email = 'your_admin_email@example.com';
 ```
 
-Only approved trainers can view trainees in their course or record attendance for them. Trainees can access only their own profile and attendance records.
+---
 
-## Run locally
+## Email Delivery & Notifications
 
-From this directory, start any static file server. For example, with Python:
+### 1. Direct Admin Approval Notification (Mobile & Web)
+When an administrator clicks **Send Email to Trainer's Gmail** or **Open Web Gmail** in the admin dashboard:
+- It launches the native mail app or Gmail with the recipient, subject (`RVNP Attendance Portal - Your Trainer Account has been Approved`), and portal access link ready to dispatch in one tap.
 
-```powershell
-py -m http.server 8000
-```
+### 2. Automated Auth Emails via Google Apps Script (Optional)
+The project includes an optional Google Apps Script bridge in [`google-apps-script/Code.gs`](./google-apps-script/Code.gs) and Edge Function in [`supabase/functions/send-email`](./supabase/functions/send-email) for routing Supabase auth tokens (signup, password reset) through Gmail.
 
-Open `http://localhost:8000`. Configure that URL in Supabase's redirect allow list before testing sign-up or password recovery.
+---
 
-## Deploy the frontend to Vercel
+## Deploy to Vercel
 
-1. Push this repository to GitHub, or import it directly in Vercel.
-2. In Vercel, import the repository and set the project root to this `rvnp-` directory if it is inside a larger repository.
-3. Choose **Other** as the framework preset. No build command or output directory is required; this is a static site.
-4. Deploy. The site uses the Supabase URL and publishable key from `supabase-config.js`.
-5. Add the final Vercel domain to the Supabase Auth redirect allow list.
-
-## Notes
-
-- `attendance.recorded_at` is set by the database and cannot be supplied by the browser.
-- Self-registration is enabled for both account roles to match the original portal. Trainer registration does not grant data access until an administrator approves the account.
-- The trainee QR code contains the admission number and course. Treat downloaded QR codes as personal information.
+The portal is hosted on Vercel at `rvnp-attendance.vercel.app`.
+Deployments are automated via GitHub CI/CD:
+- Any commit pushed to the `main` branch of `https://github.com/maina605/rvnp-.git` is built and deployed by Vercel automatically.

@@ -26,15 +26,16 @@
       Add your Supabase project URL and publishable key to <code>supabase-config.js</code> to connect this portal.
     </div>
 
+    <!-- AUTHENTICATION VIEW -->
     <section id="auth-view" class="auth-layout">
       <div class="intro">
-        <p class="eyebrow">LEARNER &amp; TRAINER SERVICES</p>
+        <p class="eyebrow">RVNP DIGITAL SERVICES</p>
         <h1>Attendance,<br><span>made simple.</span></h1>
-        <p class="intro-copy">Securely access your RVNP attendance portal, record class attendance, and review your progress.</p>
+        <p class="intro-copy">Securely access the Rift Valley National Polytechnic attendance system. Trainees view verified records, trainers mark unit sessions, and administrators manage portal approvals.</p>
         <div class="intro-points">
-          <div><span class="point-icon">01</span><span>Private trainee accounts</span></div>
-          <div><span class="point-icon">02</span><span>Course-based trainer access</span></div>
-          <div><span class="point-icon">03</span><span>Attendance history in one place</span></div>
+          <div><span class="point-icon">01</span><span>Verified trainee attendance history</span></div>
+          <div><span class="point-icon">02</span><span>Unit-based trainer attendance marking</span></div>
+          <div><span class="point-icon">03</span><span>Administrator approval &amp; mobile notifications</span></div>
         </div>
       </div>
 
@@ -42,6 +43,7 @@
         <div class="role-switch" aria-label="Account type">
           <button type="button" class="role-button active" data-role="trainee" aria-pressed="true">Trainee</button>
           <button type="button" class="role-button" data-role="trainer" aria-pressed="false">Trainer</button>
+          <button type="button" class="role-button" data-role="admin" aria-pressed="false">Admin</button>
         </div>
 
         <div id="auth-form-view">
@@ -52,31 +54,34 @@
           <form id="auth-form" class="form-stack">
             <div class="form-field" data-register-only hidden>
               <label for="full-name">Full name</label>
-              <input id="full-name" name="full_name" autocomplete="name" maxlength="120">
+              <input id="full-name" name="full_name" autocomplete="name" maxlength="120" placeholder="e.g. Brian Kipkorir">
             </div>
             <div class="form-field" data-trainer-only hidden>
               <label for="trainer-id">Trainer ID</label>
-              <input id="trainer-id" name="trainer_id" autocomplete="off" maxlength="60">
+              <input id="trainer-id" name="trainer_id" autocomplete="off" maxlength="60" placeholder="e.g. TRN-2024-001">
             </div>
             <div class="form-field" data-trainee-only hidden>
               <label for="admission-number">Admission number</label>
-              <input id="admission-number" name="admission_number" autocomplete="off" maxlength="60">
+              <input id="admission-number" name="admission_number" autocomplete="off" maxlength="60" placeholder="e.g. RVNP/CIT/2023/104">
             </div>
             <div class="form-field" data-register-only hidden>
-              <label for="phone">Phone number</label>
-              <input id="phone" name="phone" type="tel" autocomplete="tel" maxlength="30">
+              <label for="phone">Phone number (for notifications &amp; alerts)</label>
+              <input id="phone" name="phone" type="tel" autocomplete="tel" maxlength="30" placeholder="e.g. +254 712 345678">
             </div>
-            <div class="form-field" data-register-only hidden>
-              <label for="course">Course</label>
-              <input id="course" name="course" autocomplete="organization-title" maxlength="120">
+            <div class="form-field" data-course-field data-register-only hidden>
+              <label for="course">Course / Department</label>
+              <input id="course" name="course" autocomplete="organization-title" maxlength="120" placeholder="e.g. Electrical Engineering">
             </div>
             <div class="form-field">
               <label for="email">Email address</label>
-              <input id="email" name="email" type="email" autocomplete="email" required maxlength="254">
+              <input id="email" name="email" type="email" autocomplete="email" required maxlength="254" placeholder="you@rvnp.ac.ke or gmail.com">
             </div>
             <div class="form-field">
               <label for="password">Password</label>
-              <input id="password" name="password" type="password" autocomplete="current-password" required minlength="8">
+              <div class="password-input-group">
+                <input id="password" name="password" type="password" autocomplete="current-password" required minlength="8" placeholder="••••••••">
+                <button type="button" class="password-toggle-btn" data-toggle-for="password" title="Show password" aria-label="Show password">👁</button>
+              </div>
             </div>
             <button id="submit-auth" class="button button-primary" type="submit">Sign in</button>
           </form>
@@ -85,7 +90,8 @@
             <button id="forgot-link" class="text-button" type="button">Forgot password?</button>
             <p><span id="mode-prompt">New to the portal?</span> <button id="mode-toggle" class="text-button" type="button">Create an account</button></p>
           </div>
-          <p id="trainer-approval-note" class="helper-note" hidden>New trainer accounts require approval by an RVNP administrator before course records can be accessed.</p>
+          <p id="trainer-approval-note" class="helper-note" hidden>New trainer accounts require verification and approval by an RVNP administrator before course records can be accessed.</p>
+          <p id="admin-login-note" class="helper-note" hidden>Administrator portal access is restricted to verified institution personnel. Sign in with your administrator credentials.</p>
         </div>
 
         <div id="forgot-view" hidden>
@@ -95,7 +101,7 @@
           <form id="forgot-form" class="form-stack">
             <div class="form-field">
               <label for="recovery-email">Email address</label>
-              <input id="recovery-email" type="email" autocomplete="email" required maxlength="254">
+              <input id="recovery-email" type="email" autocomplete="email" required maxlength="254" placeholder="Enter your registered email">
             </div>
             <button class="button button-primary" type="submit">Send recovery code</button>
           </form>
@@ -104,6 +110,7 @@
       </section>
     </section>
 
+    <!-- PASSWORD RECOVERY VIEW -->
     <section id="recovery-view" class="card recovery-card" hidden>
       <p class="eyebrow">ACCOUNT RECOVERY</p>
       <h1>Choose a new password</h1>
@@ -111,15 +118,21 @@
       <form id="recovery-form" class="form-stack">
         <div id="recovery-code-field" class="form-field">
           <label for="recovery-code">Email recovery code</label>
-          <input id="recovery-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
+          <input id="recovery-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required placeholder="6-digit code">
         </div>
         <div class="form-field">
           <label for="new-password">New password</label>
-          <input id="new-password" type="password" autocomplete="new-password" required minlength="8">
+          <div class="password-input-group">
+            <input id="new-password" type="password" autocomplete="new-password" required minlength="8" placeholder="At least 8 characters">
+            <button type="button" class="password-toggle-btn" data-toggle-for="new-password" title="Show password" aria-label="Show password">👁</button>
+          </div>
         </div>
         <div class="form-field">
           <label for="confirm-password">Confirm new password</label>
-          <input id="confirm-password" type="password" autocomplete="new-password" required minlength="8">
+          <div class="password-input-group">
+            <input id="confirm-password" type="password" autocomplete="new-password" required minlength="8" placeholder="Re-enter new password">
+            <button type="button" class="password-toggle-btn" data-toggle-for="confirm-password" title="Show password" aria-label="Show password">👁</button>
+          </div>
         </div>
         <button class="button button-primary" type="submit">Update password</button>
       </form>
@@ -127,6 +140,7 @@
       <button class="text-button back-link" type="button" data-back-auth>Back to sign in</button>
     </section>
 
+    <!-- DASHBOARD VIEW -->
     <section id="dashboard-view" hidden>
       <div class="dashboard-heading">
         <div>
@@ -140,6 +154,7 @@
         </div>
       </div>
 
+      <!-- Quick profile stats -->
       <div class="profile-grid">
         <article class="card stat-card">
           <span class="stat-label">Account</span>
@@ -150,79 +165,105 @@
           <strong id="profile-id">—</strong>
         </article>
         <article class="card stat-card">
-          <span class="stat-label">Course</span>
+          <span class="stat-label">Course / Unit</span>
           <strong id="profile-course">—</strong>
         </article>
         <article class="card stat-card" id="attendance-stat">
-          <span class="stat-label">Attendance</span>
+          <span class="stat-label">Attendance rate</span>
           <strong><span id="attendance-rate">0</span><small>%</small></strong>
           <span class="stat-hint"><span id="present-count">0</span> present of <span id="total-count">0</span> records</span>
         </article>
       </div>
 
+      <!-- 1. TRAINEE VIEW: READ-ONLY ATTENDANCE (TRAINEES DO NOT MARK ATTENDANCE) -->
       <div id="trainee-panel" class="dashboard-grid" hidden>
-        <section class="card">
+        <section class="card trainee-pass-card">
           <div class="section-heading">
-            <div><p class="eyebrow">TRAINEE</p><h2>Record attendance</h2></div>
+            <div>
+              <p class="eyebrow">TRAINEE DIGITAL PASS</p>
+              <h2>Student Verification</h2>
+            </div>
           </div>
-          <p class="muted">Submit attendance for a unit. Your records are visible only to you and approved trainers for your course.</p>
-          <form id="trainee-attendance-form" class="form-stack">
-            <div class="form-field">
-              <label for="trainee-unit">Unit name</label>
-              <input id="trainee-unit" required maxlength="100" placeholder="e.g. Information Technology">
+          <div class="info-banner">
+            <span class="info-banner-icon">ℹ️</span>
+            <div>
+              <strong>Official Notice:</strong> Attendance is strictly marked by authorized unit trainers during sessions. Trainees can generate their identity QR code for trainers to scan and review live verified records below.
             </div>
-            <div class="form-field">
-              <label for="trainee-status">Attendance status</label>
-              <select id="trainee-status" required>
-                <option value="">Select status</option>
-                <option value="Present">Present</option>
-                <option value="Absent">Absent</option>
-              </select>
+          </div>
+
+          <div class="pass-meta">
+            <div class="pass-meta-item">
+              <label>Admission No</label>
+              <strong id="trainee-pass-id">—</strong>
             </div>
-            <button class="button button-primary" type="submit">Record attendance</button>
-          </form>
+            <div class="pass-meta-item">
+              <label>Course</label>
+              <strong id="trainee-pass-course">—</strong>
+            </div>
+          </div>
+
           <div class="qr-area">
-            <div><h3>Your trainee QR</h3><p class="muted">A scannable copy of your admission number and course.</p></div>
+            <div>
+              <h3>Your Attendance QR Pass</h3>
+              <p class="muted">Present this scannable badge to your unit trainer during roll-call.</p>
+            </div>
             <button id="show-qr" class="button button-secondary" type="button">Show QR code</button>
             <div id="qr-code" class="qr-code" hidden></div>
             <button id="download-qr" class="text-button" type="button" hidden>Download QR code</button>
           </div>
         </section>
+
         <section class="card">
           <div class="section-heading">
-            <div><p class="eyebrow">YOUR RECORDS</p><h2>Attendance history</h2></div>
+            <div>
+              <p class="eyebrow">YOUR RECORDS</p>
+              <h2>Attendance History</h2>
+            </div>
             <button id="refresh-trainee" class="text-button" type="button">Refresh</button>
           </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Unit</th><th>Status</th><th>Date</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Unit Name</th>
+                  <th>Status</th>
+                  <th>Date &amp; Time</th>
+                </tr>
+              </thead>
               <tbody id="trainee-records"></tbody>
             </table>
           </div>
-          <p id="trainee-empty" class="empty-state" hidden>No attendance records yet.</p>
+          <p id="trainee-empty" class="empty-state" hidden>No attendance records recorded yet by your trainers.</p>
         </section>
       </div>
 
+      <!-- 2. TRAINER VIEW: TRAINER MARKS ATTENDANCE FOR COURSE TRAINEES -->
       <div id="trainer-panel" class="dashboard-grid" hidden>
         <section id="trainer-pending" class="card pending-card" hidden>
           <p class="eyebrow">ACCOUNT REVIEW</p>
-          <h2>Trainer access pending</h2>
-          <p>Your registration is saved. An RVNP administrator must approve your account before you can view trainees or record attendance.</p>
-          <p class="muted">Trainer ID: <strong id="pending-trainer-id"></strong></p>
+          <h2>Trainer access pending approval</h2>
+          <p>Your registration has been submitted. An RVNP administrator must accept your request before you can access course rosters and mark attendance.</p>
+          <p class="muted">Your Trainer ID: <strong id="pending-trainer-id"></strong></p>
         </section>
+
         <section id="trainer-workspace" class="card" hidden>
           <div class="section-heading">
-            <div><p class="eyebrow">TRAINER</p><h2>Record attendance</h2></div>
+            <div>
+              <p class="eyebrow">TRAINER PORTAL</p>
+              <h2>Mark Attendance</h2>
+            </div>
           </div>
-          <p class="muted">Only trainees in your assigned course are listed.</p>
+          <p class="muted">Select a trainee from your course and record session attendance.</p>
           <form id="trainer-attendance-form" class="form-stack">
             <div class="form-field">
-              <label for="trainee-select">Trainee</label>
-              <select id="trainee-select" required><option value="">Loading trainees…</option></select>
+              <label for="trainee-select">Select trainee</label>
+              <select id="trainee-select" required>
+                <option value="">Loading trainees…</option>
+              </select>
             </div>
             <div class="form-field">
-              <label for="trainer-unit">Unit name</label>
-              <input id="trainer-unit" required maxlength="100" placeholder="Enter unit name">
+              <label for="trainer-unit">Unit name / Code</label>
+              <input id="trainer-unit" required maxlength="100" placeholder="e.g. Electrical Installation Level 5">
             </div>
             <div class="form-field">
               <label for="trainer-status">Attendance status</label>
@@ -236,23 +277,79 @@
             <button class="button button-primary" type="submit">Record attendance</button>
           </form>
         </section>
+
         <section id="trainer-records-card" class="card" hidden>
           <div class="section-heading">
-            <div><p class="eyebrow">COURSE RECORDS</p><h2>Recent attendance</h2></div>
+            <div>
+              <p class="eyebrow">COURSE RECORDS</p>
+              <h2>Recent Marked Attendance</h2>
+            </div>
             <button id="refresh-trainer" class="text-button" type="button">Refresh</button>
           </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Trainee</th><th>Unit</th><th>Status</th><th>Date</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Trainee</th>
+                  <th>Unit</th>
+                  <th>Status</th>
+                  <th>Date &amp; Time</th>
+                </tr>
+              </thead>
               <tbody id="trainer-records"></tbody>
             </table>
           </div>
           <p id="trainer-empty" class="empty-state" hidden>No course attendance records yet.</p>
         </section>
       </div>
+
+      <!-- 3. ADMIN VIEW: APPROVE TRAINERS & SEND EMAIL VIA PHONE / GMAIL -->
+      <div id="admin-panel" class="dashboard-grid dashboard-grid-full" hidden>
+        <section class="card">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">ADMINISTRATION</p>
+              <h2>Trainer Approval Requests <span id="admin-pending-badge" class="badge-count" hidden>0</span></h2>
+            </div>
+            <button id="refresh-admin" class="text-button" type="button">Refresh list</button>
+          </div>
+          <p class="muted">Review pending trainer registrations. When you accept a request, the trainer is granted access to mark attendance, and you can instantly dispatch an approval email to their Gmail via your phone or desktop.</p>
+
+          <div id="admin-pending-container" class="trainer-requests-list"></div>
+          <p id="admin-pending-empty" class="empty-state" hidden>No pending trainer requests. All registered trainers have been reviewed.</p>
+        </section>
+
+        <section class="card">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">INSTITUTION DIRECTORY</p>
+              <h2>Approved Trainers</h2>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Trainer Name</th>
+                  <th>Trainer ID</th>
+                  <th>Course / Department</th>
+                  <th>Email</th>
+                  <th>Phone</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="admin-approved-records"></tbody>
+            </table>
+          </div>
+          <p id="admin-approved-empty" class="empty-state" hidden>No approved trainers registered yet.</p>
+        </section>
+      </div>
     </section>
   </main>
 
-  <footer class="site-footer">RVNP Attendance Portal <span aria-hidden="true">·</span> Secure sign-in powered by Supabase</footer>
+  <footer class="site-footer">
+    RVNP Attendance Portal <span aria-hidden="true">·</span> Rift Valley National Polytechnic <span aria-hidden="true">·</span> Powered by Supabase &amp; Vercel
+  </footer>
 </body>
 </html>
