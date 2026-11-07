@@ -1,57 +1,72 @@
 # RVNP Attendance Portal
 
-Official static attendance portal for Rift Valley National Polytechnic (RVNP), deployed to Vercel with user accounts, Postgres database, and Row-Level Security (RLS) policies in Supabase.
+Official attendance portal for Rift Valley National Polytechnic (RVNP), deployed to Vercel with Postgres database and Row-Level Security (RLS) in Supabase.
 
 Live URL: [https://rvnp-attendance.vercel.app](https://rvnp-attendance.vercel.app)
 
 ---
 
-## Key Roles & Workflow
+## Complete Role Workflow
 
-1. **Trainee Role (Read-Only Attendance)**:
-   - Trainees **cannot mark attendance** for themselves or others.
-   - Trainees can view their attendance history, calculate attendance percentage (present vs total), and generate an official scannable QR Pass with their admission number for unit trainers to scan during roll call.
-2. **Trainer Role (Attendance Marking)**:
-   - When a trainer registers, their account is flagged as **Pending Approval**.
-   - Once approved by an Administrator, the trainer can access their assigned course roster, select enrolled trainees, enter the unit name, and mark session attendance (`Present`, `Absent`, `Late`).
-3. **Administrator Role (Trainer Approvals & Notifications)**:
-   - Administrators review all incoming trainer registrations.
-   - 1-click **Accept & Approve Trainer** grants the trainer portal permissions.
-   - **One-tap Email & Mobile Contact**: The admin can instantly send a pre-filled approval email to the trainer's Gmail via mobile/desktop mail client (`mailto:`), open Web Gmail, or call/SMS the trainer directly from their phone.
+### 1. Administrator Account Provisioning
+- The Admin provisions institutional trainer accounts directly in the **Admin Portal**:
+  - Full Name
+  - Institutional Email (e.g. `p.njoroge@rvnp.ac.ke`)
+  - Temporary Password
+  - Trainer ID (e.g. `TRN/ENG/2024/01`)
+  - Assigned Course / Class (e.g. `Electrical Engineering`)
+  - Phone Number
+- Once created, the Admin can click **Copy Credentials**, **Send via Gmail/Phone**, or **Send via WhatsApp** to dispatch the institutional login details directly to the trainer.
+- The Admin also reviews incoming self-registration or pending requests with 1-click approvals.
+
+### 2. Trainer Workflow
+1. The Trainer goes to the portal and selects the **Trainer** tab.
+2. Logs in using the institutional email and temporary password provided by the Admin.
+3. The system verifies the Trainer role and assigned course/class.
+4. In the **Trainer Workspace**:
+   - The assigned course/class is displayed.
+   - The trainee roster lists only the students enrolled in that specific class.
+   - The trainer records attendance (`Present`, `Absent`, `Late`), selecting the **Unit Name** and **Academic Term** (`Term 1`, `Term 2`, `Term 3`).
+   - The date and timestamp are automatically saved into the PostgreSQL `attendance` table.
+5. **Camera QR Attendance Scanner**:
+   - The trainer can click **📷 Scan Trainee QR Pass** to open their device camera.
+   - Pointing the camera at a trainee's QR pass automatically verifies the student belongs to the trainer's class and records attendance.
+   - **Access Control**: If an unauthorized user, foreign visitor, or trainee attempts to scan or record attendance, the system blocks them with:
+     `"⛔ Access Denied: Trainees and unauthorized users are NOT permitted to mark attendance."`
+6. **Deleting Trainee Records**:
+   - In the **Recent Marked Attendance** table, the trainer has a **🗑️ Delete** button for each record.
+   - If a trainee was marked by mistake or was not in class, the trainer can delete that record with confirmation.
+
+### 3. Trainee Workflow (Strictly Read-Only)
+1. The Trainee signs in under the **Trainee** tab with their admission number and password.
+2. Trainees **cannot record attendance** (no submission form exists).
+3. Trainees can view their:
+   - Attendance percentage breakdown (`Present`, `Absent`, `Late`, Total sessions).
+   - **Academic Term Switcher**: Filter live statistics and history by **All Terms**, **Term 1**, **Term 2**, or **Term 3**.
+   - **Scannable QR Pass**: Displays an official digital ID with admission number and course for trainers to scan.
 
 ---
 
-## Set up Supabase
+## Database Setup in Supabase
 
-1. In your Supabase Project **SQL Editor**, run [`supabase/schema.sql`](./supabase/schema.sql).
-2. In **Authentication → URL Configuration**, add:
-   - `http://localhost:8000/**`
-   - `https://rvnp-attendance.vercel.app/**`
-3. In **Project Settings → API**, copy the project URL and the publishable key into [`supabase-config.js`](./supabase-config.js).
+Run [`supabase/schema.sql`](./supabase/schema.sql) in your [Supabase SQL Editor](https://supabase.com/dashboard):
+- Creates `profiles`, `profile_contacts`, and `attendance` tables with `term` column support.
+- RLS Policies:
+  - Trainees can ONLY view their own attendance.
+  - Only approved trainers can mark attendance for trainees in their course.
+  - Trainers can delete attendance records for trainees in their course.
+  - Administrators have full update and inspection privileges.
 
-### Creating an Initial Administrator
-To promote any registered account to Administrator:
+To promote your account to Administrator:
 ```sql
 update public.profiles
 set role = 'admin', is_approved = true
-where email = 'your_admin_email@example.com';
+where email = 'machariadavid957@gmail.com';
 ```
 
 ---
 
-## Email Delivery & Notifications
+## Deployment
 
-### 1. Direct Admin Approval Notification (Mobile & Web)
-When an administrator clicks **Send Email to Trainer's Gmail** or **Open Web Gmail** in the admin dashboard:
-- It launches the native mail app or Gmail with the recipient, subject (`RVNP Attendance Portal - Your Trainer Account has been Approved`), and portal access link ready to dispatch in one tap.
-
-### 2. Automated Auth Emails via Google Apps Script (Optional)
-The project includes an optional Google Apps Script bridge in [`google-apps-script/Code.gs`](./google-apps-script/Code.gs) and Edge Function in [`supabase/functions/send-email`](./supabase/functions/send-email) for routing Supabase auth tokens (signup, password reset) through Gmail.
-
----
-
-## Deploy to Vercel
-
-The portal is hosted on Vercel at `rvnp-attendance.vercel.app`.
-Deployments are automated via GitHub CI/CD:
-- Any commit pushed to the `main` branch of `https://github.com/maina605/rvnp-.git` is built and deployed by Vercel automatically.
+The application is deployed on **Vercel** connected to GitHub repository `maina605/rvnp-` (branch `main`).
+Pushing commits to `main` automatically builds and deploys to **[https://rvnp-attendance.vercel.app](https://rvnp-attendance.vercel.app)**.

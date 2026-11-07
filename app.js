@@ -78,15 +78,35 @@
     downloadQr: document.getElementById("download-qr"),
     showQr: document.getElementById("show-qr"),
     refreshTrainee: document.getElementById("refresh-trainee"),
+    traineeTermFilter: document.getElementById("trainee-term-filter"),
     // Trainer view
     trainerPending: document.getElementById("trainer-pending"),
     trainerWorkspace: document.getElementById("trainer-workspace"),
     trainerRecordsCard: document.getElementById("trainer-records-card"),
+    trainerCourseDisplay: document.getElementById("trainer-course-display"),
     traineeSelect: document.getElementById("trainee-select"),
+    trainerUnit: document.getElementById("trainer-unit"),
+    trainerTerm: document.getElementById("trainer-term"),
+    trainerStatus: document.getElementById("trainer-status"),
     trainerRecords: document.getElementById("trainer-records"),
     trainerEmpty: document.getElementById("trainer-empty"),
     refreshTrainer: document.getElementById("refresh-trainer"),
+    toggleQrScanner: document.getElementById("toggle-qr-scanner"),
+    qrScannerBox: document.getElementById("qr-scanner-box"),
+    closeQrScanner: document.getElementById("close-qr-scanner"),
+    scanFeedback: document.getElementById("scan-feedback"),
     // Admin view
+    adminProvisionForm: document.getElementById("admin-provision-form"),
+    btnGeneratePassword: document.getElementById("btn-generate-password"),
+    credentialsSlip: document.getElementById("credentials-slip"),
+    credName: document.getElementById("cred-name"),
+    credId: document.getElementById("cred-id"),
+    credCourse: document.getElementById("cred-course"),
+    credEmail: document.getElementById("cred-email"),
+    credPassword: document.getElementById("cred-password"),
+    btnCopyCredentials: document.getElementById("btn-copy-credentials"),
+    linkEmailCredentials: document.getElementById("link-email-credentials"),
+    linkWhatsappCredentials: document.getElementById("link-whatsapp-credentials"),
     adminPendingBadge: document.getElementById("admin-pending-badge"),
     adminPendingContainer: document.getElementById("admin-pending-container"),
     adminPendingEmpty: document.getElementById("admin-pending-empty"),
@@ -101,9 +121,12 @@
   let currentProfile = null;
   let authVersion = 0;
   let traineeRoster = [];
+  let traineeAllRecords = [];
+  let traineeSelectedTerm = "all";
   let recoveryEmail = "";
   let recoveryOtpVerified = false;
   let recoveryMode = new URLSearchParams(window.location.search).get("view") === "recovery";
+  let html5QrScannerInstance = null;
 
   // Password visibility toggle
   document.querySelectorAll(".password-toggle-btn").forEach((btn) => {
@@ -182,21 +205,21 @@
       elements.adminLoginNote.hidden = isRegistering;
     } else if (role === "trainer") {
       elements.authDescription.textContent = isRegistering
-        ? "Register as an RVNP course trainer."
-        : "Sign in to mark trainee session attendance.";
-      elements.trainerApprovalNote.hidden = !isRegistering;
+        ? "Register institutional trainer account."
+        : "Sign in with your institutional email and password to mark class attendance.";
+      elements.trainerApprovalNote.hidden = false;
       elements.adminLoginNote.hidden = true;
     } else {
       elements.authDescription.textContent = isRegistering
         ? "Register with your admission number and course details."
-        : "Sign in to view your attendance history and generate your QR pass.";
+        : "Sign in to view your verified term attendance and generate your QR pass.";
       elements.trainerApprovalNote.hidden = true;
       elements.adminLoginNote.hidden = true;
     }
 
     elements.submitAuth.textContent = isRegistering ? "Create account" : "Sign in";
     elements.modePrompt.textContent = isRegistering ? "Already registered?" : "New to the portal?";
-    elements.modeToggle.textContent = isRegistering ? "Sign in" : "Create an account";
+    elements.modeToggle.textContent = isRegistering ? "Sign in" : (role === "trainer" ? "Request trainer account" : "Create student account");
     elements.password.autocomplete = isRegistering ? "new-password" : "current-password";
   }
 
@@ -233,19 +256,6 @@
     row.appendChild(cell);
   }
 
-  function renderAttendance(rows, body, empty, includeTrainee) {
-    body.replaceChildren();
-    rows.forEach((record) => {
-      const row = document.createElement("tr");
-      if (includeTrainee) addTableCell(row, record.traineeName || "Trainee");
-      addTableCell(row, record.unit_name || "—");
-      addTableCell(row, record.status, true);
-      addTableCell(row, formatDate(record.recorded_at));
-      body.appendChild(row);
-    });
-    empty.hidden = rows.length > 0;
-  }
-
   async function getProfile(userId) {
     let res = await client
       .from("profiles")
@@ -264,29 +274,62 @@
     return res.data;
   }
 
-  // 1. TRAINEE DASHBOARD (READ-ONLY ATTENDANCE)
+  // 1. TRAINEE DASHBOARD (READ-ONLY ATTENDANCE WITH TERM FILTERING)
   async function loadTraineeDashboard() {
     const traineeId = currentSession.user.id;
     safeText(elements.traineePassId, currentProfile.admission_number || "—");
     safeText(elements.traineePassCourse, currentProfile.course || "—");
 
-    const [totalResult, presentResult, recordsResult] = await Promise.all([
-      client.from("attendance").select("id", { count: "exact", head: true }).eq("trainee_id", traineeId),
-      client.from("attendance").select("id", { count: "exact", head: true }).eq("trainee_id", traineeId).eq("status", "Present"),
-      client.from("attendance").select("id, unit_name, status, recorded_at").eq("trainee_id", traineeId).order("recorded_at", { ascending: false }).limit(50)
-    ]);
-    const error = totalResult.error || presentResult.error || recordsResult.error;
-    if (error) throw error;
+    const { data, error } = await client
+      .from("attendance")
+      .select("id, unit_name, term, status, recorded_at")
+      .eq("trainee_id", traineeId)
+      .order("recorded_at", { ascending: false });
 
-    const total = totalResult.count || 0;
-    const present = presentResult.count || 0;
-    safeText(document.getElementById("total-count"), total);
-    safeText(document.getElementById("present-count"), present);
-    safeText(document.getElementById("attendance-rate"), total ? Math.round((present / total) * 100) : 0);
-    renderAttendance(recordsResult.data || [], elements.traineeRecords, elements.traineeEmpty, false);
+    if (error) throw error;
+    traineeAllRecords = data || [];
+    renderTraineeAttendanceForSelectedTerm();
   }
 
-  // 2. TRAINER DASHBOARD (MARKS ATTENDANCE FOR TRAINEES)
+  function renderTraineeAttendanceForSelectedTerm() {
+    const filtered = traineeSelectedTerm === "all"
+      ? traineeAllRecords
+      : traineeAllRecords.filter((r) => (r.term || "Term 1") === traineeSelectedTerm);
+
+    const total = filtered.length;
+    const present = filtered.filter((r) => r.status === "Present").length;
+    const percentage = total ? Math.round((present / total) * 100) : 0;
+
+    safeText(document.getElementById("total-count"), total);
+    safeText(document.getElementById("present-count"), present);
+    safeText(document.getElementById("attendance-rate"), percentage);
+
+    elements.traineeRecords.replaceChildren();
+    filtered.forEach((record) => {
+      const row = document.createElement("tr");
+      addTableCell(row, record.unit_name || "—");
+      addTableCell(row, record.term || "Term 1");
+      addTableCell(row, record.status, true);
+      addTableCell(row, formatDate(record.recorded_at));
+      elements.traineeRecords.appendChild(row);
+    });
+
+    elements.traineeEmpty.hidden = filtered.length > 0;
+  }
+
+  // Trainee term pill click handler
+  if (elements.traineeTermFilter) {
+    elements.traineeTermFilter.addEventListener("click", (e) => {
+      const btn = e.target.closest(".term-pill");
+      if (!btn) return;
+      elements.traineeTermFilter.querySelectorAll(".term-pill").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      traineeSelectedTerm = btn.getAttribute("data-term") || "all";
+      renderTraineeAttendanceForSelectedTerm();
+    });
+  }
+
+  // 2. TRAINER DASHBOARD (MARKS ATTENDANCE, SCANS QR, DELETES RECORDS)
   async function loadTrainerDashboard() {
     const isApproved = currentProfile.is_approved === true || localStorage.getItem("rvnp_approved_" + currentProfile.id) === "true";
     elements.trainerPending.hidden = isApproved;
@@ -294,14 +337,20 @@
     elements.trainerRecordsCard.hidden = !isApproved;
     elements.attendanceStat.hidden = true;
     safeText(document.getElementById("pending-trainer-id"), currentProfile.trainer_id);
+
+    if (elements.trainerCourseDisplay) {
+      elements.trainerCourseDisplay.value = currentProfile.course || "All Assigned Classes";
+    }
+
     if (!isApproved) return;
 
+    // Load trainees in trainer's assigned course
     const [rosterResult, recordsResult] = await Promise.all([
       client.from("profiles").select("id, full_name, admission_number, course").eq("role", "trainee").eq("course", currentProfile.course).order("full_name"),
-      client.from("attendance").select("id, trainee_id, unit_name, status, recorded_at").order("recorded_at", { ascending: false }).limit(50)
+      client.from("attendance").select("id, trainee_id, unit_name, term, status, recorded_at").order("recorded_at", { ascending: false }).limit(60)
     ]);
-    const error = rosterResult.error || recordsResult.error;
-    if (error) throw error;
+
+    if (rosterResult.error) throw rosterResult.error;
 
     traineeRoster = rosterResult.data || [];
     elements.traineeSelect.replaceChildren();
@@ -309,6 +358,7 @@
     placeholder.value = "";
     placeholder.textContent = traineeRoster.length ? "Select a trainee" : "No registered trainees in this course yet";
     elements.traineeSelect.appendChild(placeholder);
+
     traineeRoster.forEach((trainee) => {
       const option = document.createElement("option");
       option.value = trainee.id;
@@ -319,25 +369,328 @@
     const traineesById = new Map(traineeRoster.map((trainee) => [trainee.id, trainee]));
     const rows = (recordsResult.data || [])
       .filter((record) => traineesById.has(record.trainee_id))
-      .map((record) => ({ ...record, traineeName: traineesById.get(record.trainee_id).full_name }));
-    renderAttendance(rows, elements.trainerRecords, elements.trainerEmpty, true);
+      .map((record) => ({
+        ...record,
+        traineeName: traineesById.get(record.trainee_id).full_name,
+        admissionNumber: traineesById.get(record.trainee_id).admission_number
+      }));
+
+    renderTrainerAttendanceRecords(rows);
   }
 
-  // Build email link for phone or desktop
-  function buildApprovalEmailLinks(trainer) {
-    const subject = `RVNP Attendance Portal - Your Trainer Account has been Approved`;
-    const body = `Hello ${trainer.full_name},\n\nYour RVNP Trainer account (Trainer ID: ${trainer.trainer_id}) for ${trainer.course} has been approved by the RVNP portal administrator.\n\nYou can now sign in to mark attendance for your trainees at:\nhttps://rvnp-attendance.vercel.app\n\nRegards,\nRVNP Administration\nRift Valley National Polytechnic`;
+  // Render recent course records with DELETE button for trainer
+  function renderTrainerAttendanceRecords(rows) {
+    elements.trainerRecords.replaceChildren();
+    rows.forEach((record) => {
+      const row = document.createElement("tr");
+      addTableCell(row, `${record.traineeName} (${record.admissionNumber || ""})`);
+      addTableCell(row, record.unit_name || "—");
+      addTableCell(row, record.term || "Term 1");
+      addTableCell(row, record.status, true);
+      addTableCell(row, formatDate(record.recorded_at));
 
-    const mailto = `mailto:${encodeURIComponent(trainer.email || "")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    const webGmail = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(trainer.email || "")}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    return { mailto, webGmail, subject, body };
+      // Delete action button for trainer
+      const actionCell = document.createElement("td");
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "button button-danger btn-icon";
+      deleteBtn.innerHTML = "🗑️ Delete";
+      deleteBtn.title = "Delete this attendance record";
+      deleteBtn.addEventListener("click", async () => {
+        if (!confirm(`Are you sure you want to delete this attendance record for ${record.traineeName}?`)) {
+          return;
+        }
+        deleteBtn.disabled = true;
+        deleteBtn.textContent = "Deleting…";
+        try {
+          const { error } = await client.from("attendance").delete().eq("id", record.id);
+          if (error) throw error;
+          showNotice(`Attendance record deleted for ${record.traineeName}.`, "");
+          await loadTrainerDashboard();
+        } catch (err) {
+          showNotice(`Failed to delete record: ${friendlyError(err)}`, "error");
+          deleteBtn.disabled = false;
+          deleteBtn.innerHTML = "🗑️ Delete";
+        }
+      });
+      actionCell.appendChild(deleteBtn);
+      row.appendChild(actionCell);
+
+      elements.trainerRecords.appendChild(row);
+    });
+
+    elements.trainerEmpty.hidden = rows.length > 0;
   }
 
-  // 3. ADMIN DASHBOARD (APPROVES TRAINERS & DISPATCHES EMAIL / PHONE NOTIFICATIONS)
+  // QR SCANNER FUNCTIONALITY (STRICTLY FOR TRAINERS)
+  if (elements.toggleQrScanner) {
+    elements.toggleQrScanner.addEventListener("click", () => {
+      // Security check: Only verified trainers can scan
+      if (!currentProfile || currentProfile.role !== "trainer") {
+        showNotice("⛔ Access Denied: Only authorized RVNP trainers can mark attendance with the QR scanner.", "error");
+        return;
+      }
+      elements.qrScannerBox.hidden = false;
+      startQrScanner();
+    });
+  }
+
+  if (elements.closeQrScanner) {
+    elements.closeQrScanner.addEventListener("click", () => {
+      stopQrScanner();
+      elements.qrScannerBox.hidden = true;
+    });
+  }
+
+  async function startQrScanner() {
+    if (!window.Html5Qrcode) {
+      showNotice("QR scanner library is loading. Please check your internet connection.", "error");
+      return;
+    }
+    stopQrScanner();
+    try {
+      html5QrScannerInstance = new window.Html5Qrcode("qr-reader");
+      await html5QrScannerInstance.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        handleQrScanSuccess,
+        handleQrScanFailure
+      );
+    } catch (err) {
+      showNotice(`Camera access error: ${err.message || err}. Please permit camera access.`, "error");
+    }
+  }
+
+  function stopQrScanner() {
+    if (html5QrScannerInstance) {
+      try {
+        html5QrScannerInstance.stop().then(() => {
+          html5QrScannerInstance.clear();
+          html5QrScannerInstance = null;
+        }).catch(() => {});
+      } catch (e) {
+        html5QrScannerInstance = null;
+      }
+    }
+  }
+
+  async function handleQrScanSuccess(decodedText) {
+    // STRICT SECURITY VERIFICATION:
+    // If a foreigner, trainee, or unauthorized user tries to scan/record:
+    if (!currentProfile || currentProfile.role !== "trainer") {
+      stopQrScanner();
+      elements.qrScannerBox.hidden = true;
+      showNotice("⛔ Access Denied: Trainees and unauthorized users are NOT permitted to mark attendance.", "error");
+      return;
+    }
+
+    let payload = {};
+    try {
+      payload = JSON.parse(decodedText);
+    } catch (e) {
+      payload = { admission_number: decodedText.trim() };
+    }
+
+    const scannedAdm = (payload.admission_number || "").trim().toLowerCase();
+    const scannedCourse = (payload.course || "").trim().toLowerCase();
+    const trainerCourse = (currentProfile.course || "").trim().toLowerCase();
+
+    // Check if trainee belongs to trainer's course
+    const matchedTrainee = traineeRoster.find((t) => {
+      const tAdm = (t.admission_number || "").toLowerCase().trim();
+      return tAdm === scannedAdm || (payload.id && t.id === payload.id);
+    });
+
+    if (!matchedTrainee) {
+      elements.scanFeedback.hidden = false;
+      elements.scanFeedback.style.borderColor = "var(--danger)";
+      elements.scanFeedback.innerHTML = `
+        <strong style="color: var(--danger);">⚠️ Trainee Not in Assigned Class</strong>
+        <p style="margin: 4px 0 0; font-size: 11px;">
+          Scanned: ${escapeHtml(payload.full_name || scannedAdm)} (Course: ${escapeHtml(payload.course || "Unknown")})
+          <br>You are assigned to: <strong>${escapeHtml(currentProfile.course)}</strong>.
+        </p>
+      `;
+      return;
+    }
+
+    // Auto-select trainee in dropdown
+    elements.traineeSelect.value = matchedTrainee.id;
+
+    const unitName = elements.trainerUnit.value.trim() || "Unit Session";
+    const term = elements.trainerTerm.value || "Term 1";
+    const status = elements.trainerStatus.value || "Present";
+
+    // Instantly record attendance
+    try {
+      const { error } = await client.from("attendance").insert({
+        trainee_id: matchedTrainee.id,
+        marked_by: currentSession.user.id,
+        unit_name: unitName,
+        term: term,
+        status: status
+      });
+      if (error) throw error;
+
+      elements.scanFeedback.hidden = false;
+      elements.scanFeedback.style.borderColor = "var(--success)";
+      elements.scanFeedback.innerHTML = `
+        <strong style="color: var(--success);">✓ Attendance Recorded via QR Scan!</strong>
+        <p style="margin: 4px 0 0; font-size: 11px;">
+          ${escapeHtml(matchedTrainee.full_name)} (${escapeHtml(matchedTrainee.admission_number)})
+          <br>Unit: ${escapeHtml(unitName)} · Term: ${escapeHtml(term)} · Status: <span class="status-pill ${status.toLowerCase()}">${status}</span>
+        </p>
+      `;
+
+      showNotice(`✓ Attendance marked for ${matchedTrainee.full_name} (${matchedTrainee.admission_number})`, "");
+      await loadTrainerDashboard();
+    } catch (err) {
+      showNotice(`Failed to record scanned attendance: ${friendlyError(err)}`, "error");
+    }
+  }
+
+  function handleQrScanFailure() {
+    // Scan frame didn't find QR - ignore
+  }
+
+  // TRAINER MANUAL FORM SUBMIT
+  document.getElementById("trainer-attendance-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!currentProfile || currentProfile.role !== "trainer") {
+      showNotice("⛔ Access Denied: Only authorized trainers can record attendance.", "error");
+      return;
+    }
+    const form = event.currentTarget;
+    showNotice("", "");
+    setBusy(form, true);
+    try {
+      const traineeId = elements.traineeSelect.value;
+      if (!traineeId) throw new Error("Please select a trainee from your course roster.");
+      const unitName = elements.trainerUnit.value.trim();
+      const term = elements.trainerTerm.value;
+      const status = elements.trainerStatus.value;
+
+      const { error } = await client.from("attendance").insert({
+        trainee_id: traineeId,
+        marked_by: currentSession.user.id,
+        unit_name: unitName,
+        term: term,
+        status: status
+      });
+      if (error) throw error;
+
+      form.reset();
+      if (elements.trainerCourseDisplay) {
+        elements.trainerCourseDisplay.value = currentProfile.course || "";
+      }
+      showNotice("✓ Attendance successfully recorded in PostgreSQL.", "");
+      await loadTrainerDashboard();
+    } catch (error) {
+      showNotice(`Unable to record attendance: ${friendlyError(error)}`, "error");
+    } finally {
+      setBusy(form, false);
+    }
+  });
+
+  // 3. ADMIN DASHBOARD: PROVISION INSTITUTIONAL TRAINERS & APPROVALS
+  if (elements.btnGeneratePassword) {
+    elements.btnGeneratePassword.addEventListener("click", () => {
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789#@!";
+      let pwd = "Rvnp#";
+      for (let i = 0; i < 8; i++) {
+        pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      document.getElementById("prov-password").value = pwd;
+    });
+  }
+
+  // Admin provisions a trainer account
+  if (elements.adminProvisionForm) {
+    elements.adminProvisionForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = document.getElementById("prov-name").value.trim();
+      const trainerId = document.getElementById("prov-trainer-id").value.trim();
+      const email = document.getElementById("prov-email").value.trim().toLowerCase();
+      const course = document.getElementById("prov-course").value.trim();
+      const password = document.getElementById("prov-password").value;
+      const phone = document.getElementById("prov-phone").value.trim();
+
+      setBusy(elements.adminProvisionForm, true);
+      showNotice("", "");
+
+      try {
+        const { data, error } = await client.auth.signUp({
+          email: email,
+          password: password,
+          options: {
+            data: {
+              role: "trainer",
+              full_name: name,
+              trainer_id: trainerId,
+              course: course,
+              phone: phone,
+              created_by_admin: "true"
+            }
+          }
+        });
+
+        if (error) throw error;
+
+        // Auto-approve in local registry and database
+        const targetId = data.user ? data.user.id : trainerId;
+        localStorage.setItem("rvnp_approved_" + targetId, "true");
+        localStorage.setItem("rvnp_approved_" + trainerId, "true");
+
+        try {
+          if (data.user) {
+            await client.from("profiles").update({ is_approved: true }).eq("id", data.user.id);
+          }
+        } catch (dbErr) {}
+
+        // Populate Credentials Slip
+        safeText(elements.credName, name);
+        safeText(elements.credId, trainerId);
+        safeText(elements.credCourse, course);
+        safeText(elements.credEmail, email);
+        safeText(elements.credPassword, password);
+
+        const emailSubject = `RVNP Attendance Portal - Your Trainer Account Credentials`;
+        const emailBody = `Hello ${name},\n\nYour institutional RVNP Trainer account has been created by the Administrator:\n\n• Trainer ID: ${trainerId}\n• Assigned Class/Course: ${course}\n• Institutional Email: ${email}\n• Temporary Password: ${password}\n• Login Portal: https://rvnp-attendance.vercel.app\n\nPlease log in under the Trainer tab to mark session attendance for your trainees.\n\nRegards,\nRVNP Administration\nRift Valley National Polytechnic`;
+
+        const mailto = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+        const cleanPhone = phone.replace(/[^0-9]/g, "");
+        const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(emailBody)}`;
+
+        elements.linkEmailCredentials.href = mailto;
+        elements.linkWhatsappCredentials.href = whatsappUrl;
+        elements.credentialsSlip.hidden = false;
+
+        showNotice(`✓ Institutional Trainer account created for ${name} (${email})!`, "");
+        elements.adminProvisionForm.reset();
+        await loadAdminDashboard();
+      } catch (err) {
+        showNotice(`Failed to provision trainer: ${friendlyError(err)}`, "error");
+      } finally {
+        setBusy(elements.adminProvisionForm, false);
+      }
+    });
+  }
+
+  // Copy credentials button
+  if (elements.btnCopyCredentials) {
+    elements.btnCopyCredentials.addEventListener("click", () => {
+      const text = `RVNP Trainer Credentials:\nName: ${elements.credName.textContent}\nTrainer ID: ${elements.credId.textContent}\nCourse: ${elements.credCourse.textContent}\nEmail: ${elements.credEmail.textContent}\nPassword: ${elements.credPassword.textContent}\nPortal URL: https://rvnp-attendance.vercel.app`;
+      navigator.clipboard.writeText(text).then(() => {
+        showNotice("✓ Credentials copied to clipboard!", "");
+      }).catch(() => {
+        showNotice("Could not auto-copy. Please select and copy manually.", "error");
+      });
+    });
+  }
+
+  // Admin Dashboard Loader
   async function loadAdminDashboard() {
     elements.attendanceStat.hidden = true;
 
-    // Resilient trainers query
     let trainersData = [];
     let trainersResult = await client
       .from("profiles")
@@ -360,7 +713,9 @@
     const contactsMap = new Map((contactsResult.data || []).map((c) => [c.user_id, c.phone]));
 
     const allTrainers = trainersData.map((t) => {
-      const isApprovedLocal = t.is_approved === true || localStorage.getItem("rvnp_approved_" + t.id) === "true";
+      const isApprovedLocal = t.is_approved === true ||
+        localStorage.getItem("rvnp_approved_" + t.id) === "true" ||
+        localStorage.getItem("rvnp_approved_" + t.trainer_id) === "true";
       return {
         ...t,
         is_approved: isApprovedLocal,
@@ -377,6 +732,7 @@
       elements.adminPendingBadge.hidden = pending.length === 0;
     }
 
+    // Pending list
     elements.adminPendingContainer.replaceChildren();
     if (pending.length === 0) {
       elements.adminPendingEmpty.hidden = false;
@@ -386,14 +742,16 @@
         const card = document.createElement("div");
         card.className = "trainer-request-item";
 
-        const emailLinks = buildApprovalEmailLinks(trainer);
+        const subject = `RVNP Attendance Portal - Your Trainer Account has been Approved`;
+        const body = `Hello ${trainer.full_name},\n\nYour institutional RVNP Trainer account (Trainer ID: ${trainer.trainer_id}) for ${trainer.course} has been approved by the Administrator.\n\nYou can now sign in at: https://rvnp-attendance.vercel.app to mark attendance.\n\nRegards,\nRVNP Administration`;
+        const mailto = `mailto:${encodeURIComponent(trainer.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
         const cleanPhone = (trainer.phone || "").replace(/[^0-9+]/g, "");
 
         card.innerHTML = `
           <div class="trainer-item-header">
             <div>
               <h3>${escapeHtml(trainer.full_name)} <span class="status-pill pending">Pending Approval</span></h3>
-              <p>Trainer ID: <strong>${escapeHtml(trainer.trainer_id || "—")}</strong> · Course: <strong>${escapeHtml(trainer.course || "—")}</strong></p>
+              <p>Trainer ID: <strong>${escapeHtml(trainer.trainer_id || "—")}</strong> · Class: <strong>${escapeHtml(trainer.course || "—")}</strong></p>
             </div>
             <span class="muted" style="font-size: 11px;">Registered ${formatDate(trainer.created_at)}</span>
           </div>
@@ -407,17 +765,14 @@
             <button type="button" class="button button-success btn-approve-trainer" data-trainer-id="${trainer.id}">
               ✓ Accept &amp; Approve Trainer
             </button>
-            <a href="${emailLinks.mailto}" class="button button-gmail" title="Open Gmail or mail app on your phone">
-              📱 Send Email to Trainer's Gmail
-            </a>
-            <a href="${emailLinks.webGmail}" target="_blank" rel="noopener" class="button button-secondary" title="Open Gmail web composer">
-              🌐 Open Web Gmail
+            <a href="${mailto}" class="button button-gmail" title="Send email to trainer's Gmail">
+              📱 Email via Phone / Gmail
             </a>
             ${cleanPhone && cleanPhone !== "Notprovided" ? `
               <a href="tel:${cleanPhone}" class="button button-phone" title="Call trainer">
                 📞 Call
               </a>
-              <a href="sms:${cleanPhone}?body=${encodeURIComponent("Hello " + trainer.full_name + ", your RVNP Trainer account has been approved. You can now sign in at https://rvnp-attendance.vercel.app")}" class="button button-phone" title="Send SMS text to trainer">
+              <a href="sms:${cleanPhone}?body=${encodeURIComponent("Hello " + trainer.full_name + ", your RVNP Trainer account has been approved. You can now sign in at https://rvnp-attendance.vercel.app")}" class="button button-phone" title="Send SMS">
                 💬 SMS
               </a>
             ` : ""}
@@ -428,11 +783,9 @@
         approveBtn.addEventListener("click", async () => {
           approveBtn.disabled = true;
           approveBtn.textContent = "Approving…";
-
-          // Save approval locally immediately
           localStorage.setItem("rvnp_approved_" + trainer.id, "true");
+          if (trainer.trainer_id) localStorage.setItem("rvnp_approved_" + trainer.trainer_id, "true");
 
-          // Also attempt cloud database update
           try {
             await client.rpc("admin_approve_trainer", { target_trainer_id: trainer.id });
           } catch (e) {}
@@ -440,8 +793,8 @@
             await client.from("profiles").update({ is_approved: true }).eq("id", trainer.id);
           } catch (e) {}
 
-          showNotice(`✓ Trainer ${trainer.full_name} is approved! Dispatched approval email link.`, "");
-          window.location.href = emailLinks.mailto;
+          showNotice(`✓ Trainer ${trainer.full_name} approved! Dispatched email link.`, "");
+          window.location.href = mailto;
           await loadAdminDashboard();
         });
 
@@ -457,7 +810,8 @@
       elements.adminApprovedEmpty.hidden = true;
       approved.forEach((trainer) => {
         const row = document.createElement("tr");
-        const emailLinks = buildApprovalEmailLinks(trainer);
+        const mailto = `mailto:${encodeURIComponent(trainer.email)}`;
+        const cleanPhone = (trainer.phone || "").replace(/[^0-9+]/g, "");
 
         addTableCell(row, trainer.full_name);
         addTableCell(row, trainer.trainer_id || "—");
@@ -468,11 +822,10 @@
 
         const actionsCell = document.createElement("td");
         actionsCell.innerHTML = `
-          <a href="${emailLinks.mailto}" class="text-button" title="Send email">Email</a> ·
-          <a href="tel:${(trainer.phone || "").replace(/[^0-9+]/g, "")}" class="text-button" title="Call">Call</a>
+          <a href="${mailto}" class="text-button" title="Send email">Email</a> ·
+          <a href="tel:${cleanPhone}" class="text-button" title="Call">Call</a>
         `;
         row.appendChild(actionsCell);
-
         elements.adminApprovedRecords.appendChild(row);
       });
     }
@@ -606,7 +959,7 @@
         if (password.length < 8) throw new Error("Password must be at least 8 characters.");
 
         const metadata = {
-          role: selectedRole === "admin" ? "trainee" : selectedRole, // fallback for legacy triggers
+          role: selectedRole === "admin" ? "trainee" : selectedRole,
           actual_role: selectedRole,
           full_name: fullName,
           phone,
@@ -756,36 +1109,6 @@
     }
   });
 
-  // TRAINER MARKS ATTENDANCE (ONLY TRAINERS CAN RECORD ATTENDANCE)
-  document.getElementById("trainer-attendance-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    showNotice("", "");
-    setBusy(form, true);
-    try {
-      const traineeId = elements.traineeSelect.value;
-      if (!traineeId) throw new Error("Please select a trainee from your course roster.");
-      const unitName = document.getElementById("trainer-unit").value.trim();
-      const status = document.getElementById("trainer-status").value;
-
-      const { error } = await client.from("attendance").insert({
-        trainee_id: traineeId,
-        marked_by: currentSession.user.id,
-        unit_name: unitName,
-        status: status
-      });
-      if (error) throw error;
-
-      form.reset();
-      showNotice("✓ Attendance successfully marked for trainee.", "");
-      await loadTrainerDashboard();
-    } catch (error) {
-      showNotice(`Unable to mark attendance: ${friendlyError(error)}`, "error");
-    } finally {
-      setBusy(form, false);
-    }
-  });
-
   // Refresh listeners
   if (elements.refreshTrainee) {
     elements.refreshTrainee.addEventListener("click", async () => {
@@ -821,6 +1144,7 @@
   }
 
   document.getElementById("signout-button").addEventListener("click", async () => {
+    stopQrScanner();
     const { error } = await client.auth.signOut();
     if (error) showNotice(friendlyError(error), "error");
   });
@@ -834,27 +1158,6 @@
     showNotice("", "");
   });
 
-  if (elements.traineeSelect) {
-    elements.traineeSelect.addEventListener("change", async () => {
-      const traineeId = elements.traineeSelect.value;
-      if (!traineeId) return;
-      try {
-        const { data, error } = await client
-          .from("attendance")
-          .select("id, trainee_id, unit_name, status, recorded_at")
-          .eq("trainee_id", traineeId)
-          .order("recorded_at", { ascending: false })
-          .limit(50);
-        if (error) throw error;
-        const trainee = traineeRoster.find((item) => item.id === traineeId);
-        const rows = (data || []).map((record) => ({ ...record, traineeName: trainee ? trainee.full_name : "Trainee" }));
-        renderAttendance(rows, elements.trainerRecords, elements.trainerEmpty, true);
-      } catch (error) {
-        showNotice(friendlyError(error), "error");
-      }
-    });
-  }
-
   // QR Code generation for Trainee Pass
   if (elements.showQr) {
     elements.showQr.addEventListener("click", () => {
@@ -864,6 +1167,7 @@
       }
       elements.qrCode.replaceChildren();
       const qrPayload = JSON.stringify({
+        id: currentProfile.id,
         admission_number: currentProfile.admission_number,
         course: currentProfile.course,
         full_name: currentProfile.full_name

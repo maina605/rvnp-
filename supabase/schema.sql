@@ -18,7 +18,6 @@ create table if not exists public.profiles (
   )
 );
 
--- Backward compatibility if columns don't exist yet
 alter table public.profiles add column if not exists email text;
 alter table public.profiles add column if not exists phone text;
 
@@ -35,17 +34,25 @@ create table if not exists public.profile_contacts (
   phone text not null check (length(trim(phone)) between 1 and 30)
 );
 
+-- Attendance Table with Term Support (Term 1, Term 2, Term 3)
 create table if not exists public.attendance (
   id uuid primary key default gen_random_uuid(),
   trainee_id uuid not null references public.profiles (id) on delete cascade,
   marked_by uuid not null references public.profiles (id) on delete restrict,
   unit_name text not null check (length(trim(unit_name)) between 1 and 100),
+  term text not null default 'Term 1' check (term in ('Term 1', 'Term 2', 'Term 3')),
   status text not null check (status in ('Present', 'Absent', 'Late')),
   recorded_at timestamptz not null default now()
 );
 
+-- Add column if table already exists
+alter table public.attendance add column if not exists term text default 'Term 1';
+
 create index if not exists attendance_trainee_recorded_at_idx
   on public.attendance (trainee_id, recorded_at desc);
+
+create index if not exists attendance_trainee_term_idx
+  on public.attendance (trainee_id, term);
 
 create or replace function public.current_user_is_admin()
 returns boolean
@@ -92,9 +99,12 @@ begin
     raise exception 'Required RVNP profile details are missing or invalid';
   end if;
 
-  -- Trainers must be reviewed and approved by an Admin.
-  -- Trainees and Admins are approved by default.
-  initial_approval := case when new_role = 'trainer' then false else true end;
+  -- Admin or institutional created accounts are pre-approved
+  initial_approval := case 
+    when coalesce(new.raw_user_meta_data ->> 'created_by_admin', 'false') = 'true' then true
+    when new_role = 'trainer' then false 
+    else true 
+  end;
 
   insert into public.profiles (
     id, role, full_name, email, phone, admission_number, trainer_id, course, is_approved
@@ -112,7 +122,8 @@ begin
   on conflict (id) do update set
     email = excluded.email,
     phone = excluded.phone,
-    full_name = excluded.full_name;
+    full_name = excluded.full_name,
+    is_approved = excluded.is_approved;
 
   if new_phone <> '' then
     insert into public.profile_contacts (user_id, phone)
@@ -208,7 +219,8 @@ revoke all on public.profiles, public.profile_contacts, public.attendance from a
 grant select on public.profiles, public.attendance to authenticated;
 grant select on public.profile_contacts to authenticated;
 grant update (is_approved) on public.profiles to authenticated;
-grant insert (trainee_id, marked_by, unit_name, status) on public.attendance to authenticated;
+grant insert (trainee_id, marked_by, unit_name, term, status) on public.attendance to authenticated;
+grant delete on public.attendance to authenticated;
 
 drop policy if exists "Users read own contact details" on public.profile_contacts;
 create policy "Users read own contact details"
@@ -256,6 +268,16 @@ create policy "Only approved trainers record attendance"
     and public.trainer_can_access_trainee(trainee_id)
   );
 
+-- DELETION POLICY: Trainers can delete attendance for trainees in their assigned course
+drop policy if exists "Trainers can delete course attendance" on public.attendance;
+create policy "Trainers can delete course attendance"
+  on public.attendance for delete to authenticated
+  using (
+    marked_by = auth.uid()
+    or public.trainer_can_access_trainee(trainee_id)
+    or public.current_user_is_admin()
+  );
+
 revoke all on function public.create_profile_for_new_user() from public, anon, authenticated;
 revoke all on function public.trainer_can_access_course(text) from public, anon;
 revoke all on function public.trainer_can_access_trainee(uuid) from public, anon;
@@ -268,8 +290,3 @@ grant execute on function public.trainer_can_access_trainee(uuid) to authenticat
 grant execute on function public.current_user_is_trainee() to authenticated;
 grant execute on function public.current_user_is_admin() to authenticated;
 grant execute on function public.admin_approve_trainer(uuid) to authenticated;
-
--- HOW TO CREATE AN INITIAL ADMIN:
--- 1. Register a user in the portal (or Supabase Auth) with your email.
--- 2. Run this command in Supabase SQL Editor:
---    update public.profiles set role = 'admin', is_approved = true where email = 'your_admin_email@example.com';

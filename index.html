@@ -9,6 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -31,11 +32,11 @@
       <div class="intro">
         <p class="eyebrow">RVNP DIGITAL SERVICES</p>
         <h1>Attendance,<br><span>made simple.</span></h1>
-        <p class="intro-copy">Securely access the Rift Valley National Polytechnic attendance system. Trainees view verified records, trainers mark unit sessions, and administrators manage portal approvals.</p>
+        <p class="intro-copy">Official attendance management for Rift Valley National Polytechnic. Trainees view term attendance and QR passes, unit trainers record session roll-call, and administrators provision institutional accounts.</p>
         <div class="intro-points">
-          <div><span class="point-icon">01</span><span>Verified trainee attendance history</span></div>
-          <div><span class="point-icon">02</span><span>Unit-based trainer attendance marking</span></div>
-          <div><span class="point-icon">03</span><span>Administrator approval &amp; mobile notifications</span></div>
+          <div><span class="point-icon">01</span><span>Verified trainee attendance history by term</span></div>
+          <div><span class="point-icon">02</span><span>Trainer unit attendance &amp; camera QR scanning</span></div>
+          <div><span class="point-icon">03</span><span>Administrator institutional account provisioning</span></div>
         </div>
       </div>
 
@@ -49,7 +50,7 @@
         <div id="auth-form-view">
           <p class="eyebrow" id="auth-mode-label">WELCOME BACK</p>
           <h2 id="auth-heading">Sign in</h2>
-          <p class="muted" id="auth-description">Use your email and password to continue.</p>
+          <p class="muted" id="auth-description">Use your institutional credentials to continue.</p>
 
           <form id="auth-form" class="form-stack">
             <div class="form-field" data-register-only hidden>
@@ -65,7 +66,7 @@
               <input id="admission-number" name="admission_number" autocomplete="off" maxlength="60" placeholder="e.g. RVNP/CIT/2023/104">
             </div>
             <div class="form-field" data-register-only hidden>
-              <label for="phone">Phone number (for notifications &amp; alerts)</label>
+              <label for="phone">Phone number</label>
               <input id="phone" name="phone" type="tel" autocomplete="tel" maxlength="30" placeholder="e.g. +254 712 345678">
             </div>
             <div class="form-field" data-course-field data-register-only hidden>
@@ -73,8 +74,8 @@
               <input id="course" name="course" autocomplete="organization-title" maxlength="120" placeholder="e.g. Electrical Engineering">
             </div>
             <div class="form-field">
-              <label for="email">Email address</label>
-              <input id="email" name="email" type="email" autocomplete="email" required maxlength="254" placeholder="you@rvnp.ac.ke or gmail.com">
+              <label for="email">Institutional or Registered Email</label>
+              <input id="email" name="email" type="email" autocomplete="email" required maxlength="254" placeholder="you@rvnp.ac.ke or personal email">
             </div>
             <div class="form-field">
               <label for="password">Password</label>
@@ -88,10 +89,10 @@
 
           <div class="form-links">
             <button id="forgot-link" class="text-button" type="button">Forgot password?</button>
-            <p><span id="mode-prompt">New to the portal?</span> <button id="mode-toggle" class="text-button" type="button">Create an account</button></p>
+            <p><span id="mode-prompt">New trainee?</span> <button id="mode-toggle" class="text-button" type="button">Create student account</button></p>
           </div>
-          <p id="trainer-approval-note" class="helper-note" hidden>New trainer accounts require verification and approval by an RVNP administrator before course records can be accessed.</p>
-          <p id="admin-login-note" class="helper-note" hidden>Administrator portal access is restricted to verified institution personnel. Sign in with your administrator credentials.</p>
+          <p id="trainer-approval-note" class="helper-note" hidden>Trainer accounts are provisioned by an RVNP Administrator with institutional credentials and assigned courses.</p>
+          <p id="admin-login-note" class="helper-note" hidden>Administrator portal access is restricted to verified institution personnel.</p>
         </div>
 
         <div id="forgot-view" hidden>
@@ -157,25 +158,25 @@
       <!-- Quick profile stats -->
       <div class="profile-grid">
         <article class="card stat-card">
-          <span class="stat-label">Account</span>
+          <span class="stat-label">Account Role</span>
           <strong id="profile-role">—</strong>
         </article>
         <article class="card stat-card">
-          <span class="stat-label" id="profile-id-label">ID</span>
+          <span class="stat-label" id="profile-id-label">Identifier</span>
           <strong id="profile-id">—</strong>
         </article>
         <article class="card stat-card">
-          <span class="stat-label">Course / Unit</span>
+          <span class="stat-label">Assigned Course / Class</span>
           <strong id="profile-course">—</strong>
         </article>
         <article class="card stat-card" id="attendance-stat">
-          <span class="stat-label">Attendance rate</span>
+          <span class="stat-label">Term Attendance Rate</span>
           <strong><span id="attendance-rate">0</span><small>%</small></strong>
-          <span class="stat-hint"><span id="present-count">0</span> present of <span id="total-count">0</span> records</span>
+          <span class="stat-hint"><span id="present-count">0</span> present of <span id="total-count">0</span> sessions</span>
         </article>
       </div>
 
-      <!-- 1. TRAINEE VIEW: READ-ONLY ATTENDANCE (TRAINEES DO NOT MARK ATTENDANCE) -->
+      <!-- 1. TRAINEE VIEW: READ-ONLY ATTENDANCE WITH TERM SELECTION (NO SUBMISSION FORM) -->
       <div id="trainee-panel" class="dashboard-grid" hidden>
         <section class="card trainee-pass-card">
           <div class="section-heading">
@@ -187,7 +188,7 @@
           <div class="info-banner">
             <span class="info-banner-icon">ℹ️</span>
             <div>
-              <strong>Official Notice:</strong> Attendance is strictly marked by authorized unit trainers during sessions. Trainees can generate their identity QR code for trainers to scan and review live verified records below.
+              <strong>Official Notice:</strong> Attendance is strictly recorded by authorized unit trainers during sessions. Trainees cannot self-mark attendance. Present your scannable QR badge below during roll-call.
             </div>
           </div>
 
@@ -197,7 +198,7 @@
               <strong id="trainee-pass-id">—</strong>
             </div>
             <div class="pass-meta-item">
-              <label>Course</label>
+              <label>Course / Class</label>
               <strong id="trainee-pass-course">—</strong>
             </div>
           </div>
@@ -205,7 +206,7 @@
           <div class="qr-area">
             <div>
               <h3>Your Attendance QR Pass</h3>
-              <p class="muted">Present this scannable badge to your unit trainer during roll-call.</p>
+              <p class="muted">Hold this scannable badge up for your unit trainer to scan.</p>
             </div>
             <button id="show-qr" class="button button-secondary" type="button">Show QR code</button>
             <div id="qr-code" class="qr-code" hidden></div>
@@ -221,11 +222,24 @@
             </div>
             <button id="refresh-trainee" class="text-button" type="button">Refresh</button>
           </div>
+
+          <!-- Term Filter Switcher -->
+          <div class="term-filter-wrap">
+            <span class="muted" style="font-size: 11px;">Filter by Academic Term:</span>
+            <div class="term-pills" id="trainee-term-filter">
+              <button type="button" class="term-pill active" data-term="all">All Terms</button>
+              <button type="button" class="term-pill" data-term="Term 1">Term 1</button>
+              <button type="button" class="term-pill" data-term="Term 2">Term 2</button>
+              <button type="button" class="term-pill" data-term="Term 3">Term 3</button>
+            </div>
+          </div>
+
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>Unit Name</th>
+                  <th>Term</th>
                   <th>Status</th>
                   <th>Date &amp; Time</th>
                 </tr>
@@ -233,48 +247,86 @@
               <tbody id="trainee-records"></tbody>
             </table>
           </div>
-          <p id="trainee-empty" class="empty-state" hidden>No attendance records recorded yet by your trainers.</p>
+          <p id="trainee-empty" class="empty-state" hidden>No attendance records found for this term.</p>
         </section>
       </div>
 
-      <!-- 2. TRAINER VIEW: TRAINER MARKS ATTENDANCE FOR COURSE TRAINEES -->
+      <!-- 2. TRAINER VIEW: MARKS ATTENDANCE, SCANS TRAINEE QR, DELETES RECORDS -->
       <div id="trainer-panel" class="dashboard-grid" hidden>
         <section id="trainer-pending" class="card pending-card" hidden>
           <p class="eyebrow">ACCOUNT REVIEW</p>
-          <h2>Trainer access pending approval</h2>
-          <p>Your registration has been submitted. An RVNP administrator must accept your request before you can access course rosters and mark attendance.</p>
+          <h2>Trainer access pending verification</h2>
+          <p>Your institutional credentials have been submitted. An RVNP administrator must activate your account before you can view trainee rosters or record attendance.</p>
           <p class="muted">Your Trainer ID: <strong id="pending-trainer-id"></strong></p>
         </section>
 
         <section id="trainer-workspace" class="card" hidden>
           <div class="section-heading">
             <div>
-              <p class="eyebrow">TRAINER PORTAL</p>
-              <h2>Mark Attendance</h2>
+              <p class="eyebrow">TRAINER WORKSPACE</p>
+              <h2>Mark Class Attendance</h2>
             </div>
+            <button id="toggle-qr-scanner" class="button button-primary" type="button">
+              📷 Scan Trainee QR Pass
+            </button>
           </div>
-          <p class="muted">Select a trainee from your course and record session attendance.</p>
+
+          <!-- CAMERA QR SCANNER FOR TRAINER -->
+          <div id="qr-scanner-box" class="scanner-card" hidden>
+            <div class="scanner-header">
+              <h3>📷 Camera Attendance Scanner</h3>
+              <button id="close-qr-scanner" class="button button-quiet btn-icon" type="button">Close</button>
+            </div>
+            <p class="muted" style="font-size: 11px; margin-bottom: 10px;">
+              Point your camera at the trainee's QR pass. The scanner will automatically verify the trainee belongs to your assigned class and record attendance.
+            </p>
+            <div id="qr-reader-container">
+              <div id="qr-reader"></div>
+            </div>
+            <div id="scan-feedback" class="scan-result-card" hidden></div>
+          </div>
+
+          <p class="muted">Select a trainee from your assigned course, or scan their QR badge above to record session attendance.</p>
+          
           <form id="trainer-attendance-form" class="form-stack">
             <div class="form-field">
-              <label for="trainee-select">Select trainee</label>
+              <label for="trainer-course-display">Assigned Class / Course</label>
+              <input id="trainer-course-display" readonly style="opacity: .85; cursor: default;">
+            </div>
+
+            <div class="form-field">
+              <label for="trainee-select">Select Trainee (Enrolled in Class)</label>
               <select id="trainee-select" required>
                 <option value="">Loading trainees…</option>
               </select>
             </div>
-            <div class="form-field">
-              <label for="trainer-unit">Unit name / Code</label>
-              <input id="trainer-unit" required maxlength="100" placeholder="e.g. Electrical Installation Level 5">
+
+            <div class="form-grid-2">
+              <div class="form-field">
+                <label for="trainer-unit">Unit Name / Code</label>
+                <input id="trainer-unit" required maxlength="100" placeholder="e.g. Electrical Installation">
+              </div>
+
+              <div class="form-field">
+                <label for="trainer-term">Academic Term</label>
+                <select id="trainer-term" required>
+                  <option value="Term 1" selected>Term 1</option>
+                  <option value="Term 2">Term 2</option>
+                  <option value="Term 3">Term 3</option>
+                </select>
+              </div>
             </div>
+
             <div class="form-field">
-              <label for="trainer-status">Attendance status</label>
+              <label for="trainer-status">Attendance Status</label>
               <select id="trainer-status" required>
-                <option value="">Select status</option>
-                <option value="Present">Present</option>
+                <option value="Present" selected>Present</option>
                 <option value="Absent">Absent</option>
                 <option value="Late">Late</option>
               </select>
             </div>
-            <button class="button button-primary" type="submit">Record attendance</button>
+
+            <button class="button button-primary" type="submit">Record Attendance</button>
           </form>
         </section>
 
@@ -286,44 +338,148 @@
             </div>
             <button id="refresh-trainer" class="text-button" type="button">Refresh</button>
           </div>
+          <p class="muted" style="font-size: 11px;">
+            Trainers can delete an attendance record if a trainee was marked by mistake or was not in class.
+          </p>
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>Trainee</th>
                   <th>Unit</th>
+                  <th>Term</th>
                   <th>Status</th>
                   <th>Date &amp; Time</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody id="trainer-records"></tbody>
             </table>
           </div>
-          <p id="trainer-empty" class="empty-state" hidden>No course attendance records yet.</p>
+          <p id="trainer-empty" class="empty-state" hidden>No course attendance records recorded yet.</p>
         </section>
       </div>
 
-      <!-- 3. ADMIN VIEW: APPROVE TRAINERS & SEND EMAIL VIA PHONE / GMAIL -->
+      <!-- 3. ADMIN VIEW: PROVISION INSTITUTIONAL TRAINERS & APPROVALS -->
       <div id="admin-panel" class="dashboard-grid dashboard-grid-full" hidden>
+        <!-- PROVISION TRAINER ACCOUNT CARD -->
         <section class="card">
           <div class="section-heading">
             <div>
               <p class="eyebrow">ADMINISTRATION</p>
-              <h2>Trainer Approval Requests <span id="admin-pending-badge" class="badge-count" hidden>0</span></h2>
+              <h2>Provision Institutional Trainer Account</h2>
+            </div>
+          </div>
+          <p class="muted">
+            Create an institutional trainer account with an assigned course/class, Trainer ID, and temporary credentials. The trainer will use these credentials to log into the Trainer portal.
+          </p>
+
+          <form id="admin-provision-form" class="form-stack">
+            <div class="form-grid-2">
+              <div class="form-field">
+                <label for="prov-name">Trainer Full Name</label>
+                <input id="prov-name" required maxlength="120" placeholder="e.g. Peter Njoroge">
+              </div>
+              <div class="form-field">
+                <label for="prov-trainer-id">Trainer ID</label>
+                <input id="prov-trainer-id" required maxlength="60" placeholder="e.g. TRN/ENG/2024/01">
+              </div>
+            </div>
+
+            <div class="form-grid-2">
+              <div class="form-field">
+                <label for="prov-email">Institutional Email</label>
+                <input id="prov-email" type="email" required maxlength="254" placeholder="p.njoroge@rvnp.ac.ke">
+              </div>
+              <div class="form-field">
+                <label for="prov-course">Assigned Course / Class</label>
+                <input id="prov-course" required maxlength="120" placeholder="e.g. Electrical Engineering">
+              </div>
+            </div>
+
+            <div class="form-grid-2">
+              <div class="form-field">
+                <label for="prov-password">Temporary Password</label>
+                <div class="password-input-group">
+                  <input id="prov-password" type="text" required minlength="8" placeholder="Temporary password">
+                  <button type="button" id="btn-generate-password" class="text-button" style="position: absolute; right: 10px; font-size: 11px;">Generate</button>
+                </div>
+              </div>
+              <div class="form-field">
+                <label for="prov-phone">Trainer Phone Number (Optional)</label>
+                <input id="prov-phone" type="tel" maxlength="30" placeholder="e.g. +254 712 345678">
+              </div>
+            </div>
+
+            <button class="button button-primary" type="submit" style="justify-self: start;">
+              ✓ Provision &amp; Create Trainer Account
+            </button>
+          </form>
+
+          <!-- Generated Credentials Slip -->
+          <div id="credentials-slip" class="credentials-slip" hidden>
+            <h3>🎉 Trainer Account Provisioned Successfully</h3>
+            <p class="muted" style="margin-bottom: 12px;">Share these login credentials with the trainer:</p>
+            <div class="cred-row">
+              <span>Trainer Name:</span>
+              <strong id="cred-name">—</strong>
+            </div>
+            <div class="cred-row">
+              <span>Trainer ID:</span>
+              <code id="cred-id">—</code>
+            </div>
+            <div class="cred-row">
+              <span>Assigned Class / Course:</span>
+              <strong id="cred-course">—</strong>
+            </div>
+            <div class="cred-row">
+              <span>Institutional Email:</span>
+              <code id="cred-email">—</code>
+            </div>
+            <div class="cred-row">
+              <span>Temporary Password:</span>
+              <code id="cred-password">—</code>
+            </div>
+            <div class="cred-row">
+              <span>Portal Login URL:</span>
+              <code>https://rvnp-attendance.vercel.app</code>
+            </div>
+
+            <div class="cred-actions">
+              <button id="btn-copy-credentials" class="button button-secondary" type="button">
+                📋 Copy Credentials
+              </button>
+              <a id="link-email-credentials" class="button button-gmail" href="#" target="_blank">
+                ✉️ Send via Gmail / Phone
+              </a>
+              <a id="link-whatsapp-credentials" class="button button-phone" href="#" target="_blank">
+                💬 Send via WhatsApp
+              </a>
+            </div>
+          </div>
+        </section>
+
+        <!-- PENDING TRAINER APPROVAL QUEUE -->
+        <section class="card">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">REVIEW QUEUE</p>
+              <h2>Pending Trainer Requests <span id="admin-pending-badge" class="badge-count" hidden>0</span></h2>
             </div>
             <button id="refresh-admin" class="text-button" type="button">Refresh list</button>
           </div>
-          <p class="muted">Review pending trainer registrations. When you accept a request, the trainer is granted access to mark attendance, and you can instantly dispatch an approval email to their Gmail via your phone or desktop.</p>
+          <p class="muted">Review incoming trainer account requests or self-registrations. Approving a trainer grants them instant access to mark class roll-call.</p>
 
           <div id="admin-pending-container" class="trainer-requests-list"></div>
-          <p id="admin-pending-empty" class="empty-state" hidden>No pending trainer requests. All registered trainers have been reviewed.</p>
+          <p id="admin-pending-empty" class="empty-state" hidden>No pending trainer requests awaiting review.</p>
         </section>
 
+        <!-- INSTITUTIONAL TRAINERS DIRECTORY -->
         <section class="card">
           <div class="section-heading">
             <div>
               <p class="eyebrow">INSTITUTION DIRECTORY</p>
-              <h2>Approved Trainers</h2>
+              <h2>Active Approved Trainers</h2>
             </div>
           </div>
           <div class="table-wrap">
@@ -332,11 +488,11 @@
                 <tr>
                   <th>Trainer Name</th>
                   <th>Trainer ID</th>
-                  <th>Course / Department</th>
-                  <th>Email</th>
+                  <th>Assigned Course / Class</th>
+                  <th>Institutional Email</th>
                   <th>Phone</th>
                   <th>Status</th>
-                  <th>Actions</th>
+                  <th>Contact</th>
                 </tr>
               </thead>
               <tbody id="admin-approved-records"></tbody>
