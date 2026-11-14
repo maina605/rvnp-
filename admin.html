@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>RVNP Admin Portal (Private)</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="./admin.html" aria-label="RVNP Admin Portal home">
+      <span class="brand-mark">RV</span>
+      <span><strong>RVNP</strong><small>Admin portal</small></span>
+    </a>
+  </header>
+  <main class="shell">
+    <!-- Admin panel copied from index.html -->
+    <section id="admin-panel" class="dashboard-grid dashboard-grid-full" hidden>
+      <!-- PROVISION ADMIN ACCOUNT CARD -->
+      <section class="card">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">ADMINISTRATION</p>
+            <h2>Provision Administrator Account</h2>
+          </div>
+        </div>
+        <p class="muted">
+          Create an administrator account with institutional credentials. The admin will manage trainer requests.
+        </p>
+        <form id="admin-provision-form" class="form-stack">
+          <div class="form-grid-2">
+            <div class="form-field">
+              <label for="prov-name">Admin Full Name</label>
+              <input id="prov-name" required maxlength="120" placeholder="e.g. Peter Njoroge">
+            </div>
+            <div class="form-field">
+              <label for="prov-email">Institutional Email</label>
+              <input id="prov-email" type="email" required maxlength="254" placeholder="p.njoroge@rvnp.ac.ke">
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-field">
+              <label for="prov-password">Temporary Password</label>
+              <div class="password-input-group">
+                <input id="prov-password" type="text" required minlength="8" placeholder="Temporary password">
+                <button type="button" id="btn-generate-password" class="text-button" style="position: absolute; right: 10px; font-size: 11px;">Generate</button>
+              </div>
+            </div>
+            <div class="form-field">
+              <label for="prov-phone">Admin Phone Number (Optional)</label>
+              <input id="prov-phone" type="tel" maxlength="30" placeholder="e.g. +254 712 345678">
+            </div>
+          </div>
+          <button class="button button-primary" type="submit" style="justify-self: start;">✓ Provision &amp; Create Admin Account</button>
+        </form>
+        <!-- Generated Credentials Slip -->
+        <div id="credentials-slip" class="credentials-slip" hidden>
+          <h3>🎉 Administrator Account Provisioned Successfully</h3>
+          <p class="muted" style="margin-bottom: 12px;">Share these login credentials with the administrator:</p>
+          <div class="cred-row"><span>Admin Name:</span> <strong id="cred-name">—</strong></div>
+          <div class="cred-row"><span>Institutional Email:</span> <code id="cred-email">—</code></div>
+          <div class="cred-row"><span>Temporary Password:</span> <code id="cred-password">—</code></div>
+          <div class="cred-row"><span>Portal Login URL:</span> <code>https://rvnp-attendance.vercel.app</code></div>
+          <div class="cred-actions">
+            <button id="btn-copy-credentials" class="button button-secondary" type="button">📋 Copy Credentials</button>
+            <a id="link-email-credentials" class="button button-gmail" href="#" target="_blank">✉️ Send via Gmail / Phone</a>
+            <a id="link-whatsapp-credentials" class="button button-phone" href="#" target="_blank">💬 Send via WhatsApp</a>
+          </div>
+        </div>
+      </section>
+      <!-- PENDING ADMIN APPROVAL QUEUE (reuse same UI as trainer queue) -->
+      <section class="card">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">REVIEW QUEUE</p>
+            <h2>Pending Admin Requests <span id="admin-pending-badge" class="badge-count" hidden>0</span></h2>
+          </div>
+          <button id="refresh-admin" class="text-button" type="button">Refresh list</button>
+        </div>
+        <p class="muted">Review incoming admin account requests. Approving an admin grants full portal management rights.</p>
+        <div id="admin-pending-container" class="trainer-requests-list"></div>
+        <p id="admin-pending-empty" class="empty-state" hidden>No pending admin requests.</p>
+      </section>
+      <!-- ACTIVE ADMIN DIRECTORY -->
+      <section class="card">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">INSTITUTION DIRECTORY</p>
+            <h2>Active Administrators</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Admin Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Status</th>
+                <th>Contact</th>
+              </tr>
+            </thead>
+            <tbody id="admin-approved-records"></tbody>
+          </table>
+        </div>
+        <p id="admin-approved-empty" class="empty-state" hidden>No active administrators.</p>
+      </section>
+    </section>
+  </main>
+  <footer class="site-footer">
+    RVNP Admin Portal – Private access only
+  </footer>
+</body>
+</html>

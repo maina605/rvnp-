@@ -32,6 +32,9 @@
   }
 
   const elements = {
+  // Hide admin UI on the public site
+  adminPanel: document.getElementById("admin-panel"),
+
     authView: document.getElementById("auth-view"),
     dashboardView: document.getElementById("dashboard-view"),
     recoveryView: document.getElementById("recovery-view"),
